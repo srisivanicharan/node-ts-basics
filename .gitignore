@@ -4,4 +4,3 @@ dist
 eslint-report.html
 eslint-report.json
 tap-output.txt
-test-results.xml
