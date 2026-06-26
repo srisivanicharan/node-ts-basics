@@ -18,9 +18,19 @@ jobs:
       - name: Run ESLint
         run: |
           echo '## ESLint Report' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          npx eslint src/**/*.ts >> $GITHUB_STEP_SUMMARY || true
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '**Files checked:**' >> $GITHUB_STEP_SUMMARY
+          find src -name "*.ts" | while read f; do echo "- \`$f\`" >> $GITHUB_STEP_SUMMARY; done
+          echo '' >> $GITHUB_STEP_SUMMARY
+          OUTPUT=$(npx eslint src/**/*.ts 2>&1 || true)
+          if [ -z "$OUTPUT" ]; then
+            echo '✅ No ESLint issues found.' >> $GITHUB_STEP_SUMMARY
+          else
+            echo '❌ ESLint issues found:' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run tests
         run: npx tsx src/tests/userService.test.ts
