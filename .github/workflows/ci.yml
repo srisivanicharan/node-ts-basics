@@ -16,20 +16,28 @@ jobs:
         run: npm install
 
       - name: Run ESLint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo '## ESLint Report' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '**Files checked:**' >> $GITHUB_STEP_SUMMARY
-          find src -name "*.ts" | while read f; do echo "- \`$f\`" >> $GITHUB_STEP_SUMMARY; done
-          echo '' >> $GITHUB_STEP_SUMMARY
           OUTPUT=$(npx eslint src/**/*.ts 2>&1 || true)
+
           if [ -z "$OUTPUT" ]; then
-            echo '✅ No ESLint issues found.' >> $GITHUB_STEP_SUMMARY
+            STATUS="✅ No ESLint issues found."
           else
-            echo '❌ ESLint issues found:' >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            STATUS=$(printf '❌ ESLint issues found:\n```\n%s\n```' "$OUTPUT")
+          fi
+
+          {
+            echo "## ESLint Report"
+            echo ""
+            echo "**Files checked:**"
+            find src -name "*.ts" | while read f; do echo "- \`$f\`"; done
+            echo ""
+            echo "$STATUS"
+          } | tee /tmp/eslint-report.md >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/eslint-report.md
           fi
 
       - name: Run tests
