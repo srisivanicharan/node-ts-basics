@@ -48,4 +48,25 @@ jobs:
           exit ${ESLINT_EXIT:-0}
 
       - name: Run tests
-        run: npx tsx src/tests/userService.test.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OUTPUT=$(npx tsx src/tests/userService.test.ts 2>&1) || TEST_EXIT=$?
+
+          if [ -z "$TEST_EXIT" ]; then
+            STATUS="✅ All tests passed."
+          else
+            STATUS=$(printf '❌ Some tests failed:\n```\n%s\n```' "$OUTPUT")
+          fi
+
+          {
+            echo "## Test Report"
+            echo ""
+            echo "$STATUS"
+          } | tee /tmp/test-report.md >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/test-report.md
+          fi
+
+          exit ${TEST_EXIT:-0}
