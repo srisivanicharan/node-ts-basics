@@ -47,3 +47,9 @@ test('testing deletion of a non-existing user',(t)=>{
     t.equal(deleteUser("XYZ"),null);
     t.end();
 })
+
+resetUsers();
+test('testing getusers count is 5',(t)=>{
+    t.equal(getUsers().length,5);
+    t.end();
+})
