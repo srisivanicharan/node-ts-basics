@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -48,30 +49,12 @@ jobs:
           exit ${ESLINT_EXIT:-0}
 
       - name: Run tests
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          OUTPUT=$(npx tsx src/tests/userService.test.ts 2>&1) || TEST_EXIT=$?
+        run: npx tsx src/tests/userService.test.ts | npx tap-junit --name "User Service Tests" > test-results.xml; exit ${PIPESTATUS[0]}
 
-          if [ -z "$TEST_EXIT" ]; then
-            RESULT="✅ All tests passed."
-          else
-            RESULT="❌ Some tests failed."
-          fi
-
-          {
-            echo "## Test Report"
-            echo ""
-            echo "$RESULT"
-            echo ""
-            echo "**Details:**"
-            echo '```'
-            echo "$OUTPUT"
-            echo '```'
-          } | tee /tmp/test-report.md >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/test-report.md
-          fi
-
-          exit ${TEST_EXIT:-0}
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: test-results.xml
+          reporter: java-junit
