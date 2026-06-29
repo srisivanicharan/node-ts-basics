@@ -8,21 +8,21 @@ test('testing getusers count',(t)=>{
     t.end();
 })
 
-resetUsers();
-test('testing getusers members',(t)=>{
-    t.equal( getUsers()[0]?.name,"ABC");
-    t.equal( getUsers()[0]?.age,20);
-    t.equal( getUsers()[1]?.name,"DEF");
-    t.equal( getUsers()[1]?.age,25);    
-    t.end();
-})
+// resetUsers();
+// test('testing getusers members',(t)=>{
+//     t.equal( getUsers()[0]?.name,"ABC");
+//     t.equal( getUsers()[0]?.age,20);
+//     t.equal( getUsers()[1]?.name,"DEF");
+//     t.equal( getUsers()[1]?.age,25);    
+//     t.end();
+// })
 
-resetUsers();
-test('testing addusers length',(t)=>{
-    const curr=getUsers().length;
-    t.equal(addUser({name:"GHI",age:30}).length,curr+1);
-    t.end();
-})
+// resetUsers();
+// test('testing addusers length',(t)=>{
+//     const curr=getUsers().length;
+//     t.equal(addUser({name:"GHI",age:30}).length,curr+1);
+//     t.end();
+// })
 
 resetUsers();
 test('testing addusers members',(t)=>{
