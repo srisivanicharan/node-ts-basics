@@ -62,7 +62,7 @@ jobs:
           mkdir -p test-results
           for tapfile in tap-output/*.txt; do
             name=$(basename "$tapfile" .txt)
-            npx tap-junit --input "$tapfile" --output "test-results/${name}" --name "$name"
+            npx tap-junit --input "$tapfile" --output "test-results/${name}" --name "$name" || true
           done
 
       - name: Publish test report
