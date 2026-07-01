@@ -69,10 +69,10 @@ jobs:
                 (if $level == "error" then "🔴 High"
                  elif $level == "warning" then "🟡 Medium"
                  else "🔵 Low" end) as $sev |
-                .locations[0].physicalLocation |
-                .artifactLocation.uri as $file |
-                (.region.startLine | tostring) as $line |
-                "| \($sev) | \($file) | \($line) | \(.. | .text? // empty | first) |"
+                .message.text as $msg |
+                .locations[0].physicalLocation.artifactLocation.uri as $file |
+                (.locations[0].physicalLocation.region.startLine | tostring) as $line |
+                "| \($sev) | \($file) | \($line) | \($msg) |"
               ' /tmp/snyk-code.json 2>/dev/null || echo "| — | Could not parse code results | | |"
             fi
 
