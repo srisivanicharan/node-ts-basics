@@ -28,9 +28,7 @@ jobs:
         run: |
           npm install -g snyk
           snyk test --severity-threshold=high --json > /tmp/snyk-dep.json 2>&1 || DEP_FAILED=1
-          echo "=== DEP SCAN OUTPUT ===" && cat /tmp/snyk-dep.json | head -20
           snyk code test --json > /tmp/snyk-code.json 2>&1 || CODE_FAILED=1
-          echo "=== CODE SCAN OUTPUT ===" && cat /tmp/snyk-code.json | head -20
 
           {
             echo "## 🔒 Snyk Security Report"
