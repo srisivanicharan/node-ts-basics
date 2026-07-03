@@ -21,6 +21,69 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run Snyk security scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm install -g snyk
+          snyk test --severity-threshold=high --json > /tmp/snyk-dep.json 2>&1 || DEP_FAILED=1
+          snyk code test --json > /tmp/snyk-code.json 2>&1 || CODE_FAILED=1
+
+          {
+            echo "## 🔒 Snyk Security Report"
+            echo ""
+
+            echo "### 📦 Dependency Vulnerabilities"
+            echo ""
+            if [ -z "$DEP_FAILED" ]; then
+              echo "✅ No high or critical dependency vulnerabilities found."
+            else
+              echo "| Severity | Package | Version | Vulnerability | Fix Available |"
+              echo "|----------|---------|---------|---------------|---------------|"
+              jq -r '
+                .vulnerabilities // [] |
+                sort_by(.severity) | reverse |
+                .[] |
+                (if .severity == "critical" then "🔴 Critical"
+                 elif .severity == "high" then "🟠 High"
+                 elif .severity == "medium" then "🟡 Medium"
+                 else "🔵 Low" end) as $sev |
+                (.fixedIn // [] | if length > 0 then "✅ " + .[0] else "❌ None" end) as $fix |
+                "| \($sev) | \(.packageName) | \(.version) | \(.title) | \($fix) |"
+              ' /tmp/snyk-dep.json 2>/dev/null || echo "| — | Could not parse dependency results | | | |"
+            fi
+
+            echo ""
+            echo "### 🧑‍💻 Code Vulnerabilities"
+            echo ""
+            if [ -z "$CODE_FAILED" ]; then
+              echo "✅ No code vulnerabilities found."
+            else
+              echo "| Severity | File | Line | Issue |"
+              echo "|----------|------|------|-------|"
+              jq -r '
+                .runs[0].results // [] |
+                .[] |
+                (.level // "warning") as $level |
+                (if $level == "error" then "🔴 High"
+                 elif $level == "warning" then "🟡 Medium"
+                 else "🔵 Low" end) as $sev |
+                .message.text as $msg |
+                .locations[0].physicalLocation.artifactLocation.uri as $file |
+                (.locations[0].physicalLocation.region.startLine | tostring) as $line |
+                "| \($sev) | \($file) | \($line) | \($msg) |"
+              ' /tmp/snyk-code.json 2>/dev/null || echo "| — | Could not parse code results | | |"
+            fi
+
+          } | tee /tmp/snyk-report.md >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/snyk-report.md
+          fi
+
+          [ -z "$DEP_FAILED" ] && [ -z "$CODE_FAILED" ] || exit 1
+
       - name: Run ESLint
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

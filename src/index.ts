@@ -1,6 +1,7 @@
 import express from 'express';
 import router from './routes/users.js';
 const app = express();
+app.disable('x-powered-by');
 const port = 3000;
 // interface User{
 //     name:string;
