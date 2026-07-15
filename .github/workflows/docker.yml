@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     steps:
       - name: Checkout code
@@ -23,16 +24,44 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Archive previous image to Azure Blob Storage
+      - name: Set timestamp tag
+        run: echo "TIMESTAMP=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ env.TIMESTAMP }}
+
+      - name: Archive images older than 5 days to Azure Blob Storage
         env:
           AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
           AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          docker pull ghcr.io/${{ github.repository }}:latest || echo "No previous image found, skipping archive."
-          if docker image inspect ghcr.io/${{ github.repository }}:latest > /dev/null 2>&1; then
-            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-            ARCHIVE_NAME="node-ts-basics-${TIMESTAMP}.tar.gz"
-            docker save ghcr.io/${{ github.repository }}:latest | gzip > $ARCHIVE_NAME
+          CUTOFF=$(date -u -d "5 days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "Archiving images created before $CUTOFF"
+
+          VERSIONS=$(curl -s \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/node-ts-basics/versions")
+
+          echo "$VERSIONS" | jq -c --arg cutoff "$CUTOFF" \
+            '.[] | select(.created_at < $cutoff) | select(.metadata.container.tags | length > 0) | select(.metadata.container.tags[] | test("^[0-9]"))' | \
+          while read -r version; do
+            TAG=$(echo "$version" | jq -r '.metadata.container.tags[0]')
+            VERSION_ID=$(echo "$version" | jq -r '.id')
+            CREATED=$(echo "$version" | jq -r '.created_at')
+            echo "Archiving image with tag: $TAG (created: $CREATED)"
+
+            docker pull ghcr.io/${{ github.repository }}:$TAG
+            ARCHIVE_NAME="node-ts-basics-${TAG}.tar.gz"
+            docker save ghcr.io/${{ github.repository }}:$TAG | gzip > $ARCHIVE_NAME
+
             az storage blob upload \
               --account-name $AZURE_STORAGE_ACCOUNT \
               --account-key $AZURE_STORAGE_KEY \
@@ -40,12 +69,13 @@ jobs:
               --name $ARCHIVE_NAME \
               --file $ARCHIVE_NAME \
               --tier Archive
-            echo "Archived previous image as $ARCHIVE_NAME"
-          fi
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+            echo "Archived $ARCHIVE_NAME to Azure Blob Storage"
+
+            curl -s -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/users/${{ github.repository_owner }}/packages/container/node-ts-basics/versions/$VERSION_ID"
+
+            echo "Deleted image $TAG from GHCR"
+          done
