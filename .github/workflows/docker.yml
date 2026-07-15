@@ -23,6 +23,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Archive previous image to Azure Blob Storage
+        env:
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+        run: |
+          docker pull ghcr.io/${{ github.repository }}:latest || echo "No previous image found, skipping archive."
+          if docker image inspect ghcr.io/${{ github.repository }}:latest > /dev/null 2>&1; then
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            ARCHIVE_NAME="node-ts-basics-${TIMESTAMP}.tar.gz"
+            docker save ghcr.io/${{ github.repository }}:latest | gzip > $ARCHIVE_NAME
+            az storage blob upload \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --account-key $AZURE_STORAGE_KEY \
+              --container-name docker-archive \
+              --name $ARCHIVE_NAME \
+              --file $ARCHIVE_NAME \
+              --tier Archive
+            echo "Archived previous image as $ARCHIVE_NAME"
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
